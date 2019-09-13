@@ -1,70 +1,16 @@
-use std::fmt::{Debug, Error, Formatter, Write};
-use std::hash::{Hash, Hasher};
 
-#[macro_export]
-macro_rules! error {
-    ($fatal:expr, $($arg:tt)*) => {
-        eprintln!($($arg)*);
-        if $fatal {
-            std::process::exit(-1)
-        };
-    }
+pub fn error(err: &str) {
+    eprintln!("{}", err);
 }
 
-#[derive(PartialEq, Eq, Clone)]
-pub struct Str(pub Vec<u8>);
-
-impl Str {
-    pub fn raw_text(&self, f: &mut Formatter) -> Result<(), Error> {
-        f.write_str(unsafe { String::from_utf8_unchecked(self.0.clone()) }.as_str())?;
-        return Ok(());
-    }
+pub fn fatal<T>(err: &str) -> T {
+    eprintln!("{}", err);
+    std::process::exit(-1);
 }
-impl Hash for Str {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
+pub fn get(s: &str, i: usize) -> char {
+    if i >= s.len() {
+        return '\u{FFFF}';
     }
-}
-impl Debug for Str {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        f.write_char('"')?;
-        self.raw_text(f)?;
-        f.write_char('"')?;
-        return Result::Ok(());
-    }
+    return s.as_bytes()[i] as char;
 }
 
-impl Str {
-    pub fn new() -> Str {
-        Str(vec![])
-    }
-    pub fn new_with_cap(s: usize) -> Str {
-        Str(Vec::with_capacity(s))
-    }
-    pub fn from(s: &str) -> Str {
-        Str(s.as_bytes().to_vec())
-    }
-    pub fn from_moved_str(str: String) -> Str {
-        Str(str.into_bytes())
-    }
-    pub fn get(&self, i: usize) -> char {
-        let Str(x) = self;
-        if i >= x.len() {
-            return '\u{FFFF}';
-        }
-        return x[i] as char;
-    }
-    pub fn len(&self) -> usize {
-        let Str(x) = self;
-        return x.len();
-    }
-    pub fn push(&mut self, c: char) {
-        self.0.push(c as u8);
-    }
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        self.0.as_mut_slice()
-    }
-    pub fn as_mut(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-}
