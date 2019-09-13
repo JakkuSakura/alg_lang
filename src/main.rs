@@ -29,19 +29,14 @@ fn main() {
     if let Some(f) = matches.value_of("path") {
         println!("path : {}", f);
     }
-//    let buf = String::from("a = 6*7\n
-//b = 5*8\n
-//print(a, b)\n
-//");
+//    let buf = String::from("fn foo(){print(233); print(234)} foo()");
     let mut buf = String::new();
     let mut file = File::open(matches.value_of("input").unwrap_or("/dev/stdin")).expect("Cannot open file");
     file.read_to_string(&mut buf).expect("Cannot read file");
     let v = parser::parse(&buf, 0);
+    // todo log system
     debug!("{:#?}", v);
     runtime::run_code(&v);
+
 }
-// assign: ID = expr
-// expr: add
-// add: a + b | a - b | multi
-// multi: a * b | a / b | value
-// value: FLOAT | func_call | ( expr )
+

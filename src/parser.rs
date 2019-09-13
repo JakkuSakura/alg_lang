@@ -3,7 +3,6 @@ use super::util::*;
 use std::fmt::{Debug, Error, Formatter};
 
 #[derive(Clone)]
-
 pub struct FuncCall {
     pub func_name: Identifier,
     pub arg_list: Vec<Value>,
@@ -11,7 +10,7 @@ pub struct FuncCall {
 
 impl Debug for FuncCall {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_str(&self.func_name.0.to_string())?;
+        f.write_str(&self.func_name.0)?;
         //        f.write_str("(")?;
         self.arg_list.fmt(f)?;
         //        f.write_str(")")?;
@@ -20,11 +19,11 @@ impl Debug for FuncCall {
 }
 
 #[derive(Debug, Clone)]
-pub struct ArgDecl(String);
+pub struct ArgDecl(Identifier);
 
 #[derive(Debug, Clone)]
 pub struct FuncDecl {
-    pub func_name: String,
+    pub func_name: Identifier,
     pub arg_list: Vec<ArgDecl>,
     pub body: Block,
 }
@@ -72,11 +71,13 @@ impl Debug for Value {
 #[derive(Debug, Clone)]
 pub struct Return(pub Value);
 
+#[allow(non_camel_case_types)]
 #[derive(Clone)]
 pub enum Statement {
     ASSIGNMENT(Assign),
     RETURN(Return),
-    EXPRESSION(Value)
+    EXPRESSION(Value),
+    FUNC_DECL(FuncDecl),
 }
 
 impl Debug for Statement {
@@ -85,6 +86,7 @@ impl Debug for Statement {
             Statement::ASSIGNMENT(x) => x.fmt(f),
             Statement::RETURN(x) => x.fmt(f),
             Statement::EXPRESSION(x) => x.fmt(f),
+            Statement::FUNC_DECL(x) => x.fmt(f),
         }
     }
 }
@@ -122,26 +124,29 @@ fn try_eat_operator(input: &str, pos: usize, operator: &str) -> Option<usize> {
 }
 
 fn try_eat_blank(input: &str, pos: usize) -> Option<usize> {
-    let (tk, pos) = next_token(input, pos);
-    if Token::NEWLINE == tk {
+    if let (Token::NEWLINE, pos) = next_token(input, pos) {
         return Some(pos);
     }
     return None;
 }
 
 fn try_eat_newline(input: &str, pos: usize) -> Option<usize> {
-    let (tk, pos) = next_token(input, pos);
-    if Token::NEWLINE == tk {
+    if let (Token::NEWLINE, pos) = next_token(input, pos) {
         return Some(pos);
-    } else if Token::EOF == tk {
+    } else if let (Token::EOF, pos) = next_token(input, pos) {
         return Some(pos);
+    } else if let (Token::OPERATOR(o), _p) = next_token(input, pos) {
+        if o == "}" {
+            return Some(pos);
+        } else if o == ";" {
+            return Some(_p);
+        }
     }
     return None;
 }
 
 fn assignment_stmt(input: &str, pos: usize) -> Option<(Assign, usize)> {
-    let (tk, pos) = next_token(input, pos);
-    if let Token::IDENTIFIER(id) = tk {
+    if let (Token::IDENTIFIER(id), pos) = next_token(input, pos) {
         let pos = try_eat_operator(input, pos, "=");
         if pos.is_some() {
             let r = expression(input, pos.unwrap());
@@ -151,6 +156,69 @@ fn assignment_stmt(input: &str, pos: usize) -> Option<(Assign, usize)> {
             }
         } else {
             return None;
+        }
+    }
+    return None;
+}
+
+fn identifier(input: &str, pos: usize) -> Option<(Identifier, usize)> {
+    if let (Token::IDENTIFIER(id), p) = next_token(input, pos) {
+        return Some((id, p));
+    }
+    return None;
+}
+
+fn func_decl(input: &str, pos: usize) -> Option<(FuncDecl, usize)> {
+    if let Some(mut pos) = try_eat_keyword(input, pos, "fn") {
+        if let Some((func_name, p)) = identifier(input, pos) {
+            pos = p;
+            let mut arg_list = vec![];
+            if let Some(p) = try_eat_operator(input, pos, "(") {
+                pos = p;
+                let mut expect_comma = false;
+                loop {
+                    if !expect_comma {
+                        if let (Token::IDENTIFIER(v), p) = next_token(input, pos) {
+                            pos = p;
+                            arg_list.push(ArgDecl(v));
+                            expect_comma = true;
+                            continue;
+                        }
+                    } else {
+                        if let Some(p) = try_eat_operator(input, pos, ",") {
+                            pos = p;
+                            expect_comma = false;
+                            continue;
+                        }
+                    }
+                    if let Some(p) = try_eat_operator(input, pos, ")") {
+                        pos = p;
+                        break;
+                    }
+                    fatal(&format!("Error: expect ',' or ')' while trying to parse a function call at {}", pos));
+                    break;
+                }
+            } else {
+                fatal(&format!("Error: expect '(' after fn [id] at {}", pos));
+            }
+            while let Some(p) = try_eat_blank(input, pos) {
+                pos = p;
+            }
+            if let Some(pos) = try_eat_operator(input, pos, "{") {
+                let (body, pos) = block(input, pos);
+
+                if let Some(pos) = try_eat_operator(input, pos, "}") {
+                    return Some((FuncDecl {
+                        func_name,
+                        arg_list,
+                        body,
+                    }, pos));
+                } else {
+                    fatal(&format!("Error: not closing bracket at pos {}", pos));
+                }
+            }
+        } else {
+            fatal(&format!("Error: expect identifier after fn at {}", pos));
         }
     }
     return None;
@@ -166,8 +234,7 @@ fn return_stmt(input: &str, pos: usize) -> Option<(Return, usize)> {
 }
 
 fn func_call(input: &str, pos: usize) -> Option<(FuncCall, usize)> {
-    let (tk, pos) = next_token(input, pos);
-    if let Token::IDENTIFIER(func_name) = tk {
+    if let Some((func_name, pos)) = identifier(input, pos) {
         if let Some(mut pos) = try_eat_operator(input, pos, "(") {
             let mut func = FuncCall {
                 func_name,
@@ -193,7 +260,7 @@ fn func_call(input: &str, pos: usize) -> Option<(FuncCall, usize)> {
                     pos = p;
                     break;
                 }
-                fatal::<()>(&format!("Error: expect ',' or ')' while trying to parse a function call at {}", pos));
+                error(&format!("Error: expect ',' or ')' while trying to parse a function call at {}", pos));
                 break;
             }
             return Some((func, pos));
@@ -231,7 +298,7 @@ fn expr_implementation(
                     });
                     o1 = x;
                 } else {
-                    fatal::<()>(&format!("Error: expect a expression at pos {}", pos));
+                    fatal_::<()>(&format!("Error: expect a expression at pos {}", pos));
                 }
             }
         }
@@ -278,7 +345,6 @@ fn value(input: &str, pos: usize) -> Option<(Value, usize)> {
 }
 
 fn statement(input: &str, pos: usize) -> Option<(Statement, usize)> {
-
     if let Some((ass, pos)) = assignment_stmt(input, pos) {
         if let Some(pos) = try_eat_newline(input, pos) {
             return Some((Statement::ASSIGNMENT(ass), pos));
@@ -295,12 +361,15 @@ fn statement(input: &str, pos: usize) -> Option<(Statement, usize)> {
             return Some((Statement::EXPRESSION(val), pos));
         }
     }
+    if let Some((decl, pos)) = func_decl(input, pos) {
+        return Some((Statement::FUNC_DECL(decl), pos));
+    }
 
 
     return None;
 }
 
-pub fn parse(input: &str, pos: usize) -> Block {
+pub fn block(input: &str, pos: usize) -> (Block, usize) {
     let mut b = Block(vec![]);
     let mut pos = pos;
     loop {
@@ -314,12 +383,27 @@ pub fn parse(input: &str, pos: usize) -> Block {
                 pos = p;
             }
             None => {
-                if pos != input.len() {
-                    error(&format!("Unknown error at: {}", pos));
-                }
                 break;
             }
         }
     }
+    return (b, pos);
+}
+
+
+pub fn parse(input: &str, pos: usize) -> Block {
+    let (b, pos) = block(input, pos);
+
+    if pos != input.len() {
+        error(&format!("Unknown error at: {}", pos));
+    }
+
     return b;
 }
+
+// assign: ID = expr
+// expr: add
+// add: a + b | a - b | multi
+// multi: a * b | a / b | value
+// value: FLOAT | func_call | ( expr )
+// func_decl: fn (arg1, arg2, arg3) -> {blblbl}

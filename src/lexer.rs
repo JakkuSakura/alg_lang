@@ -35,11 +35,11 @@ fn strcmp(input: &str, pos: usize, s: &str) -> bool {
     }
 }
 
-const KEYWORDS: [&str; 10] = [
-    "for", "if", "while", "loop", "until", "return", "continue", "break", "to", "downto",
+const KEYWORDS: [&str; 11] = [
+    "for", "if", "while", "loop", "until", "return", "continue", "break", "to", "downto", "fn"
 ];
-const OPERATORS: [&str; 13] = [
-    "+", "-", "*", "/", "=", "**", "[", "]", "(", ")", "{", "}", ",",
+const OPERATORS: [&str; 15] = [
+    "+", "-", "*", "/", "=", "**", "[", "]", "(", ")", "{", "}", ",", "->", ";"
 ];
 
 pub fn next_token(input: &str, pos: usize) -> (Token, usize) {

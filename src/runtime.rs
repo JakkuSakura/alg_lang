@@ -2,7 +2,7 @@ use super::parser::*;
 
 use std::collections::HashMap;
 use crate::runtime::PrimitiveType::VOID;
-use crate::util::fatal;
+use crate::util::fatal_;
 use std::fmt::{Display, Formatter, Error};
 
 type Str = String;
@@ -64,7 +64,7 @@ fn get_value(scope: &Scope, v: &Value) -> PrimitiveType {
                     return (builtin.execute)(scope, fc);
                 }
                 _ => {
-                    fatal(&format!("Error: {} is not a function or built-in function", fc.func_name.0))
+                    fatal_(&format!("Error: {} is not a function or built-in function", fc.func_name.0))
                 }
             }
         }
@@ -86,7 +86,10 @@ pub fn run_block<'a>(parent_scope: Option<&'a Scope>, blk: &Block) -> PrimitiveT
                 return get_value(&scope, value);
             }
             Statement::EXPRESSION(exp) => {
-                return get_value(&scope, exp);
+                get_value(&scope, exp);
+            }
+            Statement::FUNC_DECL(fun) => {
+                scope.local.insert(fun.func_name.0.clone(), PrimitiveType::FUNCTION(fun.clone()));
             }
         }
     }
@@ -104,7 +107,7 @@ fn add_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
         }
     }
 
-    fatal(&format!("Unknown error"))
+    fatal_(&format!("Unknown error"))
 }
 
 fn sub_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
@@ -118,7 +121,7 @@ fn sub_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
         }
     }
 
-    fatal(&format!("Unknown error"))
+    fatal_(&format!("Unknown error"))
 }
 
 fn mult_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
@@ -132,7 +135,7 @@ fn mult_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
         }
     }
 
-    fatal(&format!("Unknown error"))
+    fatal_(&format!("Unknown error"))
 }
 
 fn div_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
@@ -145,12 +148,13 @@ fn div_builtin(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
             return PrimitiveType::F64(f1 / f2);
         }
     }
-    fatal(&format!("Unknown error"))
+    fatal_(&format!("Unknown error"))
 }
 
 fn print(scope: &Scope, func_call: &FuncCall) -> PrimitiveType {
     for o in func_call.arg_list.iter() {
-        print!("{} ", get_value(scope, o));
+        let v = get_value(scope, o);
+        print!("{} ", v);
     }
     println!();
     return VOID;
