@@ -43,18 +43,19 @@ const OPERATORS: [&str; 14] = [
 ];
 
 pub fn next_token(input: &str, pos: usize) -> (Token, usize) {
+
+    let mut pos = pos;
+    while get(input, pos) == ' ' || get(input,pos) == '\t' || get(input,pos) == '\n' || get(input,pos) == '\r' {
+        pos += 1;
+    }
     if pos >= input.len() {
         debug!("match EOF");
         return (Token::EOF, pos);
     }
+
     if get(input, pos) == ';' {
         debug!("match semicolon");
         return (Token::SEMICOLON, pos + 1);
-    }
-
-    let mut pos = pos;
-    while get(input, pos) == ' ' || get(input,pos) == '\t' {
-        pos += 1;
     }
     for k in KEYWORDS.iter() {
         if strcmp(input, pos, *k) {

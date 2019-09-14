@@ -2,7 +2,7 @@ use super::parser::*;
 
 use std::collections::HashMap;
 use crate::runtime::PrimitiveType::VOID;
-use crate::util::fatal_;
+use crate::util::{fatal_, fatal};
 use std::fmt::{Display, Formatter, Error};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -75,8 +75,21 @@ fn get_value(scope: Rc<RefCell<Scope>>, v: &Value) -> PrimitiveType {
                 func = scope.as_ref().borrow().lookup(&fc.func_name.0.to_string());
             }
             match func {
-                PrimitiveType::FUNCTION(f) => {
-                    return run_block(true, Some(scope), &f.body);
+                PrimitiveType::FUNCTION(fd) => {
+                    if fc.arg_list.len() != fd.arg_list.len() {
+                        fatal("Error: function arguments number not accepted");
+                    }
+                    let mut args = HashMap::new();
+                    for i in 0..fc.arg_list.len() {
+                        args.insert((fd.arg_list[i].0).0.clone(), get_value(scope.clone(), &fc.arg_list[i]));
+
+                    }
+
+                    let x = Rc::new(RefCell::new(Scope {
+                        parent: Some(scope),
+                        local: args,
+                    }));
+                    return run_block(false, Some(x), &fd.body);
                 }
                 PrimitiveType::BUILTIN(builtin) => {
                     return (builtin.execute)(scope, fc);

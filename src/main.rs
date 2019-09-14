@@ -26,7 +26,7 @@ fn main() {
 //        .args_from_usage("-o, --output=[FILE] 'output file'")
         .get_matches();
 
-//    let buf = String::from("fn foo(){return 6;} a = foo();while a { a = a - 1;print(a);}");
+//    let buf = String::from("fn foo(a){return 6+a;} a = foo(7); a = a + a; while a { a = a - 1;print(a);}\n");
     let mut buf = String::new();
     let mut file = File::open(matches.value_of("input").unwrap_or("/dev/stdin")).expect("Cannot open file");
     file.read_to_string(&mut buf).expect("Cannot read file");

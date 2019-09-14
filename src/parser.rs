@@ -20,7 +20,7 @@ impl Debug for FuncCall {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct ArgDecl(Identifier);
+pub struct ArgDecl(pub Identifier);
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct FuncDecl {
@@ -91,7 +91,7 @@ pub enum Statement {
     FUNC_DECL(FuncDecl),
     IF(If),
     WHILE(While),
-    NOTHING
+    NOTHING,
 }
 
 impl Debug for Statement {
@@ -342,7 +342,7 @@ fn while_stmt(input: &str, pos: usize) -> Option<(While, usize)> {
             fatal(&format!("Error: expect bracket after \"while cond {} stmts\" at pos {}", "{", pos))
         }
 
-        return Some((While{cond, then}, pos));
+        return Some((While { cond, then }, pos));
     }
     return None;
 }
@@ -463,7 +463,6 @@ pub fn block(input: &str, pos: usize) -> (Block, usize) {
     let mut b = Block(vec![]);
     let mut pos = pos;
     loop {
-
         match statement(input, pos) {
             Some((node, p)) => {
                 match node {
@@ -486,7 +485,7 @@ pub fn block(input: &str, pos: usize) -> (Block, usize) {
 pub fn parse(input: &str, pos: usize) -> Block {
     let (b, pos) = block(input, pos);
 
-    if pos != input.len() {
+    if let (Token::EOF, _) = next_token(input, pos) {} else {
         error(&format!("Unknown error at: {}", pos));
     }
 
