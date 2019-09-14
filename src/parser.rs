@@ -2,7 +2,8 @@ use super::lexer::*;
 use super::util::*;
 use std::fmt::{Debug, Error, Formatter};
 
-#[derive(Clone)]
+
+#[derive(PartialEq, Clone)]
 pub struct FuncCall {
     pub func_name: Identifier,
     pub arg_list: Vec<Value>,
@@ -18,17 +19,17 @@ impl Debug for FuncCall {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct ArgDecl(Identifier);
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct FuncDecl {
     pub func_name: Identifier,
     pub arg_list: Vec<ArgDecl>,
     pub body: Block,
 }
 
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Assign {
     pub id: Identifier,
     pub val: Value,
@@ -44,40 +45,53 @@ impl Debug for Assign {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Value {
     VAR(Identifier),
     FLOAT(f64),
+    INT(i32),
+    BOOL(bool),
     FUNC_CALL(FuncCall),
 }
 
 impl Debug for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         match self {
-            Value::VAR(x) => {
-                x.fmt(f)?;
-            }
-            Value::FLOAT(x) => {
-                x.fmt(f)?;
-            }
-            Value::FUNC_CALL(x) => {
-                x.fmt(f)?;
-            }
-        };
-        return Ok(());
+            Value::VAR(x) => x.fmt(f),
+            Value::FLOAT(x) => x.fmt(f),
+            Value::FUNC_CALL(x) => x.fmt(f),
+            Value::INT(x) => x.fmt(f),
+            Value::BOOL(x) => x.fmt(f),
+        }
     }
 }
 
-#[derive(Debug, Clone)]
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct If {
+    pub cond: Vec<Value>,
+    pub then: Vec<Block>,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct While {
+    pub cond: Value,
+    pub then: Block,
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct Return(pub Value);
 
 #[allow(non_camel_case_types)]
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Statement {
     ASSIGNMENT(Assign),
     RETURN(Return),
     EXPRESSION(Value),
     FUNC_DECL(FuncDecl),
+    IF(If),
+    WHILE(While),
+    NOTHING
 }
 
 impl Debug for Statement {
@@ -87,11 +101,14 @@ impl Debug for Statement {
             Statement::RETURN(x) => x.fmt(f),
             Statement::EXPRESSION(x) => x.fmt(f),
             Statement::FUNC_DECL(x) => x.fmt(f),
+            Statement::IF(x) => x.fmt(f),
+            Statement::WHILE(x) => x.fmt(f),
+            Statement::NOTHING => f.write_str(";"),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Block(pub Vec<Statement>);
 
 impl Debug for Block {
@@ -123,24 +140,9 @@ fn try_eat_operator(input: &str, pos: usize, operator: &str) -> Option<usize> {
     return None;
 }
 
-fn try_eat_blank(input: &str, pos: usize) -> Option<usize> {
-    if let (Token::NEWLINE, pos) = next_token(input, pos) {
+fn try_eat_semicolon(input: &str, pos: usize) -> Option<usize> {
+    if let (Token::SEMICOLON, pos) = next_token(input, pos) {
         return Some(pos);
-    }
-    return None;
-}
-
-fn try_eat_newline(input: &str, pos: usize) -> Option<usize> {
-    if let (Token::NEWLINE, pos) = next_token(input, pos) {
-        return Some(pos);
-    } else if let (Token::EOF, pos) = next_token(input, pos) {
-        return Some(pos);
-    } else if let (Token::OPERATOR(o), _p) = next_token(input, pos) {
-        if o == "}" {
-            return Some(pos);
-        } else if o == ";" {
-            return Some(_p);
-        }
     }
     return None;
 }
@@ -160,6 +162,7 @@ fn assignment_stmt(input: &str, pos: usize) -> Option<(Assign, usize)> {
     }
     return None;
 }
+
 
 fn identifier(input: &str, pos: usize) -> Option<(Identifier, usize)> {
     if let (Token::IDENTIFIER(id), p) = next_token(input, pos) {
@@ -200,9 +203,6 @@ fn func_decl(input: &str, pos: usize) -> Option<(FuncDecl, usize)> {
                 }
             } else {
                 fatal(&format!("Error: expect '(' after fn [id] at {}", pos));
-            }
-            while let Some(p) = try_eat_blank(input, pos) {
-                pos = p;
             }
             if let Some(pos) = try_eat_operator(input, pos, "{") {
                 let (body, pos) = block(input, pos);
@@ -265,6 +265,84 @@ fn func_call(input: &str, pos: usize) -> Option<(FuncCall, usize)> {
             }
             return Some((func, pos));
         }
+    }
+    return None;
+}
+
+fn if_stmt(input: &str, pos: usize) -> Option<(If, usize)> {
+    if let Some(mut pos) = try_eat_keyword(input, pos, "if") {
+        let mut if_ = If { cond: vec![], then: vec![] };
+        let mut flag = true;
+        let mut true_cond = false;
+        while flag {
+            flag = false;
+            if !true_cond {
+                if let Some((expr, p)) = expression(input, pos) {
+                    if_.cond.push(expr);
+                    pos = p;
+                } else {
+                    fatal(&format!("Error: expect expression after if at pos {}", pos));
+                }
+            } else {
+                if_.cond.push(Value::BOOL(true));
+            }
+            if let Some(p) = try_eat_operator(input, pos, "{") {
+                pos = p;
+            } else {
+                fatal(&format!("Error: expect bracket after \"if cond \" at pos {}", pos))
+            }
+
+            let (then, p) = block(input, pos);
+            if_.then.push(then);
+            pos = p;
+
+            if let Some(p) = try_eat_operator(input, pos, "}") {
+                pos = p;
+            } else {
+                fatal(&format!("Error: expect bracket after \"if cond {} stmts\" at pos {}", "{", pos))
+            }
+            if let Some(p) = try_eat_keyword(input, pos, "elif") {
+                flag = true;
+                pos = p;
+            } else if let Some(p) = try_eat_keyword(input, pos, "else") {
+                flag = true;
+                pos = p;
+                true_cond = true;
+            }
+        }
+        return Some((if_, pos));
+    }
+    return None;
+}
+
+fn while_stmt(input: &str, pos: usize) -> Option<(While, usize)> {
+    if let Some(mut pos) = try_eat_keyword(input, pos, "while") {
+        let cond;
+
+        if let Some((expr, p)) = expression(input, pos) {
+            cond = expr;
+            pos = p;
+        } else {
+            fatal(&format!("Error: expect expression after if at pos {}", pos));
+            panic!();
+        }
+
+        if let Some(p) = try_eat_operator(input, pos, "{") {
+            pos = p;
+        } else {
+            fatal(&format!("Error: expect bracket after \"while cond \" at pos {}", pos))
+        }
+
+        let (then, p) = block(input, pos);
+        pos = p;
+
+        if let Some(p) = try_eat_operator(input, pos, "}") {
+            pos = p;
+        } else {
+            fatal(&format!("Error: expect bracket after \"while cond {} stmts\" at pos {}", "{", pos))
+        }
+
+        return Some((While{cond, then}, pos));
     }
     return None;
 }
@@ -337,6 +415,9 @@ fn value(input: &str, pos: usize) -> Option<(Value, usize)> {
     if let Token::FLOAT(f) = tk {
         return Some((Value::FLOAT(f), pos));
     }
+    if let Token::INTEGER(i) = tk {
+        return Some((Value::INT(i), pos));
+    }
     if let Token::IDENTIFIER(id) = tk {
         return Some((Value::VAR(id), pos));
     }
@@ -346,26 +427,35 @@ fn value(input: &str, pos: usize) -> Option<(Value, usize)> {
 
 fn statement(input: &str, pos: usize) -> Option<(Statement, usize)> {
     if let Some((ass, pos)) = assignment_stmt(input, pos) {
-        if let Some(pos) = try_eat_newline(input, pos) {
+        if let Some(pos) = try_eat_semicolon(input, pos) {
             return Some((Statement::ASSIGNMENT(ass), pos));
         }
     }
     if let Some((rtn, pos)) = return_stmt(input, pos) {
-        if let Some(pos) = try_eat_newline(input, pos) {
+        if let Some(pos) = try_eat_semicolon(input, pos) {
             return Some((Statement::RETURN(rtn), pos));
         }
     }
 
     if let Some((val, pos)) = value(input, pos) {
-        if let Some(pos) = try_eat_newline(input, pos) {
+        if let Some(pos) = try_eat_semicolon(input, pos) {
             return Some((Statement::EXPRESSION(val), pos));
         }
     }
     if let Some((decl, pos)) = func_decl(input, pos) {
         return Some((Statement::FUNC_DECL(decl), pos));
     }
+    if let Some((if_, pos)) = if_stmt(input, pos) {
+        return Some((Statement::IF(if_), pos));
+    }
 
+    if let Some((while_, pos)) = while_stmt(input, pos) {
+        return Some((Statement::WHILE(while_), pos));
+    }
 
+    if let Some(pos) = try_eat_semicolon(input, pos) {
+        return Some((Statement::NOTHING, pos));
+    }
     return None;
 }
 
@@ -373,13 +463,15 @@ pub fn block(input: &str, pos: usize) -> (Block, usize) {
     let mut b = Block(vec![]);
     let mut pos = pos;
     loop {
-        while let Some(p) = try_eat_blank(input, pos) {
-            pos = p;
-        }
 
         match statement(input, pos) {
             Some((node, p)) => {
-                b.0.push(node);
+                match node {
+                    Statement::NOTHING => {}
+                    _ => {
+                        b.0.push(node);
+                    }
+                }
                 pos = p;
             }
             None => {
@@ -407,3 +499,6 @@ pub fn parse(input: &str, pos: usize) -> Block {
 // multi: a * b | a / b | value
 // value: FLOAT | func_call | ( expr )
 // func_decl: fn (arg1, arg2, arg3) -> {blblbl}
+// if cond { } else {}
+// if cond { }
+// if cond { } else if cond {}

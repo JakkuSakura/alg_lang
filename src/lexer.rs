@@ -18,9 +18,9 @@ pub enum Token {
     IDENTIFIER(Identifier),
     OPERATOR(&'static str),
     KEYWORD(&'static str),
-    INTEND(i32),
+    INTEGER(i32),
     FLOAT(f64),
-    NEWLINE,
+    SEMICOLON,
     ERROR,
     EOF,
 }
@@ -35,11 +35,11 @@ fn strcmp(input: &str, pos: usize, s: &str) -> bool {
     }
 }
 
-const KEYWORDS: [&str; 11] = [
-    "for", "if", "while", "loop", "until", "return", "continue", "break", "to", "downto", "fn"
+const KEYWORDS: [&str; 13] = [
+    "for", "if", "while", "loop", "until", "return", "continue", "break", "to", "downto", "fn", "else", "elif"
 ];
-const OPERATORS: [&str; 15] = [
-    "+", "-", "*", "/", "=", "**", "[", "]", "(", ")", "{", "}", ",", "->", ";"
+const OPERATORS: [&str; 14] = [
+    "+", "-", "*", "/", "=", "**", "[", "]", "(", ")", "{", "}", ",", "->"
 ];
 
 pub fn next_token(input: &str, pos: usize) -> (Token, usize) {
@@ -47,9 +47,9 @@ pub fn next_token(input: &str, pos: usize) -> (Token, usize) {
         debug!("match EOF");
         return (Token::EOF, pos);
     }
-    if get(input, pos) == '\n' {
-        debug!("match new line");
-        return (Token::NEWLINE, pos + 1);
+    if get(input, pos) == ';' {
+        debug!("match semicolon");
+        return (Token::SEMICOLON, pos + 1);
     }
 
     let mut pos = pos;
@@ -112,7 +112,11 @@ pub fn next_token(input: &str, pos: usize) -> (Token, usize) {
             }
         }
         debug!("match number");
-        return (Token::FLOAT(n), pos);
+        if dot {
+            return (Token::FLOAT(n), pos);
+        } else {
+            return (Token::INTEGER(n as i32), pos);
+        }
     }
 
 
